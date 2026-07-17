@@ -1,0 +1,127 @@
+# ============================================================
+#  DETECTOR AI — .gitignore
+#  Endangered Species Detection & Tracking System
+# ============================================================
+
+# ─────────────────────────── Python ─────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+*.so
+*.pyd
+
+# ─────────────────── Virtual Environments ───────────────────
+.venv*/
+.venvdetector/
+venv/
+env/
+ENV/
+
+# ─────────────────── Model Weights (large) ──────────────────
+# Download or train locally — don't push to git
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.engine
+models/*.tflite
+*.pt
+*.pth
+*.onnx
+
+# ──────────────────── Datasets (large) ──────────────────────
+# Recreate via: python training/setup_tiger_dataset.py
+tiger_dataset/
+data/
+training/tiger_dataset/
+*.zip
+*.tar.gz
+*.tar
+*.h5
+*.hdf5
+
+# ──────────────────── Database Files ────────────────────────
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ──────────────── Ultralytics / YOLO Runs ───────────────────
+runs/
+wandb/
+
+# ──────────────── Streamlit Cache ───────────────────────────
+.streamlit/
+
+# ──────────────── Jupyter Notebooks ─────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ──────────────── Test / Temp Artifacts ─────────────────────
+smoke_test.py
+jivan-*
+*.tmp
+*.bak
+
+# ──────────────── IDE & Editor Files ────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ──────────────── OS Generated Files ────────────────────────
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*.directory
+
+# ──────────────── Logs & Caches ─────────────────────────────
+*.log
+logs/
+*.cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ──────────────── Distribution / Package ────────────────────
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ──────────────── Coverage & Testing ────────────────────────
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.gcov
+
+# ──────────────── Misc ──────────────────────────────────────
+.env
+.env.local
+*.env
+secrets.yaml
+.agents/

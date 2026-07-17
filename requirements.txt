@@ -1,0 +1,24 @@
+# DETECTOR AI — Dependencies
+# Install with: pip install -r requirements.txt
+# For CUDA support (RTX 4050), install PyTorch first:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# Core ML
+ultralytics>=8.2.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+timm>=0.9.0
+
+# Data processing
+pandas>=2.0.0
+scikit-learn>=1.3.0
+Pillow>=10.0.0
+tqdm>=4.65.0
+requests>=2.31.0
+
+# Dashboard
+streamlit>=1.28.0
+plotly>=5.17.0
+
+# Logging
+sqlite-utils>=3.35
