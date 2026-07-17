@@ -126,4 +126,4 @@ coverage.xml
 secrets.yaml
 .agents/
 
-*.png
+image.png
