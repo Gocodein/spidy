@@ -125,3 +125,5 @@ coverage.xml
 *.env
 secrets.yaml
 .agents/
+
+*.png
