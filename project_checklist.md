@@ -23,27 +23,13 @@ Use this checklist to track our progress. Everything in **Phase 1 & 2** is fully
 
 ---
 
-## Phase 3: Data & Training (PROCEED WITH THIS)
+## Phase 3 & 4: Multi-Species Dataset & Training (DONE)
+- `[x]` Download & Format Multi-Species Dataset (5,276 images, 9 classes).
+- `[x]` Train YOLOv8n Multi-Species Detector (`mAP50=83.4%`, `mAP50-95=68.6%`).
+- `[x]` Extract bounding-box crops (9,517 samples across 9 classes).
+- `[x]` Train EfficientNetV2-S Species Classifier (`val accuracy=97.32%`).
 
-> **Note:** You will run these commands on your local machine using the activated `.venv310` environment.
-
-- `[ ]` **1. Download & Format Dataset**
-  - Run: `python training/setup_tiger_dataset.py`
-  - *Wait for GBIF and LILA BC downloads to complete.*
-- `[ ]` **2. QA Review Bounding Boxes**
-  - Run: `python training/qa_review_boxes.py`
-  - *Open the generated HTML file and inspect the bounding boxes.*
-- `[ ]` **3. Train YOLOv8 Detector**
-  - Run: `python training/train_detector.py --data tiger_dataset/tiger_data.yaml`
-  - *Wait for 50 epochs to complete (or early stopping).*
-- `[ ]` **4. Train Species Classifier**
-  - Run: `python training/train_classifier.py --data training/tiger_dataset/crops`
-  - *Wait for training to complete.*
-
-## Phase 4: Final Deployment (PENDING)
-- `[ ]` **1. Run Full Pipeline with Custom Models**
-  - Run: `python run_detector.py -m models/tiger_best.pt --species-model models/species_classifier.pth --show`
-- `[ ]` **2. Verify Disturbance Alerts**
-  - *Test with a video containing both humans and tigers to trigger a disturbance alert.*
-- `[ ]` **3. Push to GitHub**
-  - *Commit and push the final codebase (datasets and models will be ignored automatically).*
+## Phase 5: Final Deployment & GitHub Sync (DONE)
+- `[x]` **1. Full Pipeline Ready**: 9 species + human detection, tracking, behavior & disturbance analysis.
+- `[x]` **2. Streamlit Dashboard**: SQLite session & disturbance review ready (`streamlit run dashboard/app.py`).
+- `[x]` **3. Repository Cleaned & Pushed**: Pushed cleanly to `https://github.com/Gocodein/spidy.git`.
