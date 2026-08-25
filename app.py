@@ -43,16 +43,17 @@ if Path(DEFAULT_CLASSIFIER_WEIGHTS).exists():
     except Exception as e:
         print(f"Classifier load warning: {e}")
 
-
 def _detect_impl(image: np.ndarray, conf_threshold: float, enable_stage2: bool):
+    empty_df = pd.DataFrame(columns=["Entity", "Stage", "Confidence", "Category", "Bounding Box"])
     if image is None:
-        return None, pd.DataFrame(), "ℹ️ Please upload or capture an image."
+        return None, empty_df, "ℹ️ Please upload or capture an image."
     
     # Image in RGB from Gradio
     img_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     h, w = img_bgr.shape[:2]
+    cur_device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    results = yolo_model(img_bgr, conf=conf_threshold, verbose=False)
+    results = yolo_model(img_bgr, conf=conf_threshold, device=cur_device, verbose=False)
     annotated = img_bgr.copy()
 
     records = []
@@ -112,7 +113,7 @@ def _detect_impl(image: np.ndarray, conf_threshold: float, enable_stage2: bool):
             })
 
     annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-    df_out = pd.DataFrame(records)
+    df_out = pd.DataFrame(records) if records else empty_df
 
     if has_human and animal_count > 0:
         status = f"🚨 DISTURBANCE WARNING: {animal_count} Animal(s) & Human detected in proximity!"
@@ -154,7 +155,12 @@ with gr.Blocks(title="DETECTOR AI — Wildlife Surveillance", theme=gr.themes.So
         with gr.Column(scale=1):
             output_img = gr.Image(type="numpy", label="Annotated Output with Bounding Boxes")
             status_box = gr.Textbox(label="Threat & Sanctuary Status", interactive=False)
-            output_df = gr.DataFrame(label="Detected Entities Breakdown", interactive=False)
+            output_df = gr.Dataframe(
+                headers=["Entity", "Stage", "Confidence", "Category", "Bounding Box"],
+                datatype=["str", "str", "str", "str", "str"],
+                label="Detected Entities Breakdown",
+                interactive=False
+            )
 
     submit_btn.click(
         fn=detect_wildlife,
