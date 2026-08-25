@@ -1,3 +1,15 @@
+---
+title: Spidy Wildlife Detector
+emoji: 🐾
+colorFrom: orange
+colorTo: green
+sdk: gradio
+sdk_version: 4.30.0
+app_file: app.py
+pinned: false
+license: apache-2.0
+---
+
 # 🐾 DETECTOR AI — Multi-Species Wildlife Detection & Monitoring System
 
 > **Real-time 9-class endangered species detection, multi-object tracking, behavior kinematics, and human-disturbance analysis using deep learning.**
