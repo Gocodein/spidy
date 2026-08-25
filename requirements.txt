@@ -19,7 +19,8 @@ requests>=2.31.0
 # Dashboard & UI
 streamlit>=1.28.0
 plotly>=5.17.0
-gradio>=4.30.0
+gradio>=5.0.0
+huggingface_hub>=0.26.0
 
 # Logging
 sqlite-utils>=3.35
