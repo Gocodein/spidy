@@ -5,7 +5,8 @@
 [![Python 3.10](https://img.shields.io/badge/Python-3.10-blue.svg)](https://www.python.org/downloads/release/python-31011/)
 [![PyTorch 2.5](https://img.shields.io/badge/PyTorch-2.5%20CUDA%2012.1-EE4C2C.svg)](https://pytorch.org/)
 [![Ultralytics YOLOv8](https://img.shields.io/badge/YOLOv8-8.4.127-00FFFF.svg)](https://github.com/ultralytics/ultralytics)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Patent Protected](https://img.shields.io/badge/Patent-Indian%20Patent%20Protected-green.svg)](#-license--patent-notice)
 
 **DETECTOR AI** is an end-to-end 6-stage AI pipeline engineered for wildlife conservation researchers, national park authorities, and automated camera traps. It detects 8 major endangered animal species (plus humans), tracks their movements persistently, classifies fine-grained behavior states, analyzes potential human-wildlife disturbance events in real time, and logs structured analytics to an interactive dashboard.
 
@@ -219,9 +220,21 @@ Detector/
 
 ---
 
-## 📜 License
+## 📜 License & Patent Notice
 
-Distributed under the **MIT License**. See `LICENSE` for details.
+This project is licensed under the **Apache License, Version 2.0**. See the [`LICENSE`](LICENSE) file for the full license text.
+
+> **🏛️ Patent & Intellectual Property Notice:**  
+> The biomimetic ground-level robotic monitoring platform (*Arachnid Research Companion / Spidy*), multi-stage AI detection pipeline, kinematics-based behavior estimation, and human-disturbance monitoring architecture are **officially published and protected under the Indian Patent Office**:
+>
+> - **Invention Title**: *“Arachnid Research Companion (ARC): A Biomimetic Hexapod Robot for Ground-Level Environmental Monitoring”*
+> - **Application Number**: `202531071175 A`
+> - **Filing Date**: `26/07/2025` | **Publication Date**: `01/08/2025`
+> - **Patent Journal**: *The Patent Office Journal No. 31/2025 (Page 74978)*
+> - **Applicant**: JIS College of Engineering
+> - **Inventors**: Sagar Shaw, Rajat Mitra, Roshan Kumar Yadav, Sahin Molla
+>
+> All rights not expressly granted under the Apache 2.0 license are reserved. See [`NOTICE`](NOTICE) for details.
 
 ---
 
