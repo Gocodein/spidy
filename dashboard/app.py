@@ -555,43 +555,58 @@ elif page == "🔬 Live AI Inference Playground":
 
     st.markdown("---")
 
-    # Sample selector or file upload
-    tab1, tab2 = st.tabs(["📁 Upload Image File", "🐾 Test with Dataset Samples"])
+    # Mode Selector: Upload vs Dataset Samples
+    input_mode = st.radio(
+        "Select Image Input Mode:",
+        options=["📁 Upload Your Own Image", "🐾 Test with Dataset Samples"],
+        horizontal=True,
+    )
     
     img_bgr: Optional[np.ndarray] = None
+    image_source_label = ""
 
-    with tab1:
-        uploaded_file = st.file_uploader("Choose an image (JPG, PNG, JPEG)", type=["jpg", "jpeg", "png"])
-        if uploaded_file:
+    if input_mode == "📁 Upload Your Own Image":
+        uploaded_file = st.file_uploader(
+            "Upload Image (JPG, PNG, JPEG)", 
+            type=["jpg", "jpeg", "png"],
+            help="Drag & drop or browse any wildlife photo from your device"
+        )
+        if uploaded_file is not None:
             file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
             img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
-    with tab2:
+            image_source_label = f"Uploaded File: {uploaded_file.name}"
+            if img_bgr is None:
+                st.error("❌ Failed to decode uploaded image. Please try a standard JPG/PNG file.")
+    else:
         sample_dir = PROJECT_ROOT / "multispecies_dataset" / "images" / "val"
-        sample_files = list(sample_dir.glob("*.jpg"))[:12] if sample_dir.exists() else []
+        sample_files = list(sample_dir.glob("*.jpg"))[:18] if sample_dir.exists() else []
         if sample_files:
             sample_names = [f.name for f in sample_files]
-            chosen_sample = st.selectbox("Select sample test image:", sample_names)
+            chosen_sample = st.selectbox("Choose a sample validation image:", sample_names, index=0)
             if chosen_sample:
                 sample_path = sample_dir / chosen_sample
                 img_bgr = cv2.imread(str(sample_path))
+                image_source_label = f"Sample: {chosen_sample}"
         else:
-            st.info("Sample directory not found.")
+            st.info("ℹ️ No sample validation images found locally.")
 
     if img_bgr is not None:
+        st.markdown(f"**Current Input:** `{image_source_label}`")
         col1, col2 = st.columns(2)
         h, w = img_bgr.shape[:2]
 
         with col1:
-            st.subheader("Original Image")
+            st.subheader("Original Input Image")
             st.image(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB), use_container_width=True)
 
         # Run Real-Time Inference
-        with st.spinner("Processing through 2-Stage Cascaded Neural Network..."):
+        with st.spinner("Running 2-Stage Cascaded Neural Network (YOLOv8 + EfficientNetV2-S)..."):
             results = yolo_model(img_bgr, conf=conf_thresh, verbose=False)
             annotated = img_bgr.copy()
 
             results_summary = []
+            crops_list = []
+
             if results and len(results[0].boxes) > 0:
                 boxes = results[0].boxes
                 xyxy = boxes.xyxy.cpu().numpy()
@@ -613,10 +628,11 @@ elif page == "🔬 Live AI Inference Playground":
                     final_conf = conf
                     stage2_applied = False
 
+                    crop = None
                     # Stage 2 Fine-Grained Classifier
-                    if enable_stage2 and classifier and classifier.is_available and (x2 > x1) and (y2 > y1):
+                    if (x2 > x1) and (y2 > y1):
                         crop = img_bgr[y1:y2, x1:x2]
-                        if crop.size > 0:
+                        if enable_stage2 and classifier and classifier.is_available and crop.size > 0:
                             cls_res = classifier.classify(crop)
                             if cls_res:
                                 final_label, final_conf = cls_res
@@ -633,6 +649,9 @@ elif page == "🔬 Live AI Inference Playground":
 
                     cv2.putText(annotated, tag, (x1, max(24, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
+                    if crop is not None and crop.size > 0:
+                        crops_list.append((final_label, final_conf, cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)))
+
                     results_summary.append({
                         "Entity": format_species(final_label),
                         "Classification Stage": "Stage 2 (EffNetV2-S)" if stage2_applied else "Stage 1 (YOLOv8)",
@@ -641,12 +660,20 @@ elif page == "🔬 Live AI Inference Playground":
                     })
 
         with col2:
-            st.subheader(f"Inference Results ({len(results_summary)} Found)")
+            st.subheader(f"Detections ({len(results_summary)} Found)")
             st.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB), use_container_width=True)
 
         if results_summary:
-            st.subheader("🔍 Detailed Detections Breakdown")
+            st.subheader("🔍 Detection Breakdown Table")
             st.dataframe(pd.DataFrame(results_summary), use_container_width=True)
+
+            if crops_list:
+                st.subheader("📸 Extracted Entity Crops (Stage 2 Inputs)")
+                crop_cols = st.columns(min(len(crops_list), 4))
+                for c_idx, (c_label, c_conf, c_img) in enumerate(crops_list):
+                    col_target = crop_cols[c_idx % len(crop_cols)]
+                    with col_target:
+                        st.image(c_img, caption=f"{format_species(c_label)} ({c_conf:.1%})", use_container_width=True)
         else:
             st.warning(f"No objects detected at confidence threshold {conf_thresh:.0%}. Try lowering the slider above.")
 
