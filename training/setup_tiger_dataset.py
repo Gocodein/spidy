@@ -117,15 +117,21 @@ def download_rajaji_dataset():
 def download_lila_tiger_subset():
     print("Downloading LILA BC WCS bounding-box annotations (has real boxes already)...")
     bbox_zip_path = RAW_DIR / "wcs_bboxes.zip"
-    r = requests.get(LILA_BBOX_URL, stream=True, timeout=120)
-    r.raise_for_status()
-    with open(bbox_zip_path, "wb") as f:
-        for chunk in r.iter_content(chunk_size=8192):
-            f.write(chunk)
+
+    # Only download if zip doesn't exist yet
+    if not bbox_zip_path.exists():
+        r = requests.get(LILA_BBOX_URL, stream=True, timeout=120)
+        r.raise_for_status()
+        with open(bbox_zip_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+    else:
+        print("  WCS bbox zip already exists — skipping download.")
 
     extract_dir = RAW_DIR / "wcs_bbox_extracted"
-    with zipfile.ZipFile(bbox_zip_path, "r") as z:
-        z.extractall(extract_dir)
+    if not extract_dir.exists():
+        with zipfile.ZipFile(bbox_zip_path, "r") as z:
+            z.extractall(extract_dir)
 
     json_files = list(extract_dir.glob("*.json"))
     if not json_files:
@@ -135,8 +141,16 @@ def download_lila_tiger_subset():
         meta = json.load(f)
 
     cat_id_to_name = {c["id"]: c["name"].lower() for c in meta["categories"]}
-    tiger_cat_ids = {cid for cid, name in cat_id_to_name.items() if "tiger" in name}
+    # WCS taxonomy uses scientific names (e.g. "panthera tigris"), not common names
+    TIGER_KEYWORDS = {"tiger", "panthera tigris", "tigris"}
+    tiger_cat_ids = {
+        cid for cid, name in cat_id_to_name.items()
+        if any(kw in name for kw in TIGER_KEYWORDS)
+        and "tigrisoma" not in name  # exclude Tigrisoma (a bird genus)
+    }
     print(f"  Found {len(tiger_cat_ids)} tiger-related category id(s) in WCS taxonomy")
+    for cid in tiger_cat_ids:
+        print(f"    → ID={cid}: {cat_id_to_name[cid]}")
 
     images_by_id = {img["id"]: img for img in meta["images"]}
     tiger_anns = [ann for ann in meta["annotations"] if ann.get("category_id") in tiger_cat_ids]
@@ -178,43 +192,73 @@ def download_lila_tiger_subset():
 
 
 # ------------------------------------------------------------------
-# STEP 3: Auto-generate bounding boxes with MegaDetector
+# STEP 3: Auto-generate bounding boxes with YOLOv8
 # ------------------------------------------------------------------
-def run_megadetector(image_dir, output_labels_dir):
+# COCO animal class IDs that YOLO can detect
+COCO_ANIMAL_IDS = {
+    14, 15, 16, 17, 18, 19, 20, 21, 22, 23,  # bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe
+}
+
+def run_yolo_auto_annotate(image_dir, output_labels_dir, conf_threshold=0.3):
     """
-    Runs MegaDetector on every image in image_dir and writes YOLO-format
-    labels (class_id x_center y_center width height, normalized 0-1) to
-    output_labels_dir. Every detected 'animal' box is assigned CLASS_ID
-    since we already know these images are tiger-labeled from the source dataset.
+    Uses a pre-trained YOLOv8 model to auto-detect animals in images and
+    writes YOLO-format labels. Since these images come from known tiger
+    camera-trap datasets, every detected animal box is assigned CLASS_ID=0
+    (bengal_tiger).
+
+    This replaces MegaDetector — no extra dependency needed.
     """
-    from megadetector.detection import run_detector
+    from ultralytics import YOLO
     from PIL import Image
 
-    detector = run_detector.load_detector("MDV5A")  # or "MDV6" if available
+    print(f"\n  Auto-annotating images in {image_dir} using YOLOv8...")
+    model = YOLO("yolov8n.pt")
 
-    for img_path in tqdm(list(Path(image_dir).glob("*.jpg")), desc="MegaDetector"):
+    image_paths = list(Path(image_dir).glob("*.jpg"))
+    annotated = 0
+
+    for img_path in tqdm(image_paths, desc="YOLOv8 auto-annotate"):
         try:
-            img = Image.open(img_path).convert("RGB")
-            result = detector.generate_detections_one_image(img, img_path.name)
+            results = model(str(img_path), conf=conf_threshold, verbose=False)
         except Exception:
             continue
 
+        if not results or results[0].boxes is None:
+            continue
+
+        boxes = results[0].boxes
+        xyxy = boxes.xyxy.cpu().numpy()
+        confs = boxes.conf.cpu().numpy()
+        class_ids = boxes.cls.cpu().numpy().astype(int)
+
+        # Get image dimensions
+        img = Image.open(img_path)
         w, h = img.size
+
         label_lines = []
-        for det in result.get("detections", []):
-            # MegaDetector category '1' = animal
-            if det["category"] != "1" or det["conf"] < 0.5:
+        for idx in range(len(xyxy)):
+            cid = int(class_ids[idx])
+            # Only keep detections that YOLO classifies as animals
+            if cid not in COCO_ANIMAL_IDS:
                 continue
-            x, y, box_w, box_h = det["bbox"]  # already normalized [0-1] top-left x,y,w,h
-            x_center = x + box_w / 2
-            y_center = y + box_h / 2
-            label_lines.append(f"{CLASS_ID} {x_center:.6f} {y_center:.6f} {box_w:.6f} {box_h:.6f}")
+
+            x1, y1, x2, y2 = xyxy[idx]
+            x_center = ((x1 + x2) / 2) / w
+            y_center = ((y1 + y2) / 2) / h
+            box_w = (x2 - x1) / w
+            box_h = (y2 - y1) / h
+            label_lines.append(
+                f"{CLASS_ID} {x_center:.6f} {y_center:.6f} {box_w:.6f} {box_h:.6f}"
+            )
 
         if label_lines:
             out_path = Path(output_labels_dir) / f"{img_path.stem}.txt"
             out_path.write_text("\n".join(label_lines))
             shutil.copy(img_path, IMG_DIR / img_path.name)
             shutil.copy(out_path, LBL_DIR / out_path.name)
+            annotated += 1
+
+    print(f"  Auto-annotated {annotated}/{len(image_paths)} images with animal boxes.")
 
 
 # ------------------------------------------------------------------
@@ -256,16 +300,45 @@ names:
 
 if __name__ == "__main__":
     setup_dirs()
-    download_rajaji_dataset()
-    download_lila_tiger_subset()
 
-    # Run MegaDetector on whichever raw image folders downloaded successfully
-    for folder in ["rajaji_images", "lila_tiger_images"]:
-        p = RAW_DIR / folder
-        if p.exists() and any(p.iterdir()):
-            run_megadetector(p, LBL_DIR)
+    # Step 1: Rajaji (skip if already downloaded)
+    rajaji_dir = RAW_DIR / "rajaji_images"
+    if rajaji_dir.exists() and any(rajaji_dir.glob("*.jpg")):
+        print(f"Rajaji images already exist ({len(list(rajaji_dir.glob('*.jpg')))} images) — skipping download.")
+    else:
+        download_rajaji_dataset()
 
+    # Step 2: LILA BC WCS tiger subset (skip if already downloaded)
+    lila_dir = RAW_DIR / "lila_tiger_images"
+    bbox_json = RAW_DIR / "wcs_bbox_extracted"
+    if bbox_json.exists():
+        print("LILA BC WCS metadata already exists — re-processing tiger filter...")
+        download_lila_tiger_subset()  # re-run to apply fixed filter
+    else:
+        download_lila_tiger_subset()
+
+    # Step 3: Auto-annotate Rajaji images (they have no boxes from source)
+    # Only run on rajaji_images — LILA images already have real boxes from Step 2
+    rajaji_label_check = LBL_DIR / "rajaji_0000.txt"
+    if rajaji_dir.exists() and any(rajaji_dir.iterdir()) and not rajaji_label_check.exists():
+        run_yolo_auto_annotate(rajaji_dir, LBL_DIR)
+    else:
+        print("Rajaji auto-annotation already done or no images — skipping.")
+
+    # Step 4: Split
     split_dataset()
+
+    # Step 5: data.yaml
     write_data_yaml()
-    print("\nDone. Next step: fine-tune YOLOv8 with:")
-    print(f"  yolo detect train data={ROOT/'tiger_data.yaml'} model=yolov8n.pt epochs=100 imgsz=640")
+
+    # Summary
+    n_train = len(list((ROOT / "images" / "train").glob("*.jpg")))
+    n_val = len(list((ROOT / "images" / "val").glob("*.jpg")))
+    n_test = len(list((ROOT / "images" / "test").glob("*.jpg")))
+    print(f"\n{'='*60}")
+    print(f"  DATASET READY!")
+    print(f"  Train: {n_train} | Val: {n_val} | Test: {n_test}")
+    print(f"  Total: {n_train + n_val + n_test} images")
+    print(f"{'='*60}")
+    print(f"\nNext step: fine-tune YOLOv8 with:")
+    print(f"  python training/train_detector.py --data {ROOT/'tiger_data.yaml'}")

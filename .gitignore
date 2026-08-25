@@ -1,6 +1,14 @@
 # ============================================================
 #  DETECTOR AI — .gitignore
-#  Endangered Species Detection & Tracking System
+#  Endangered Species Detection & Tracking System (9 Classes)
+#  
+#  Project structure to TRACK:
+#    .gitignore, readme.md, requirements.txt
+#    project_guide.md, project_checklist.md
+#    run_detector.py
+#    detector_ai/        (core pipeline — 9 modules)
+#    training/           (dataset setup & model training scripts)
+#    dashboard/app.py    (Streamlit monitoring dashboard)
 # ============================================================
 
 # ─────────────────────────── Python ─────────────────────────
@@ -17,32 +25,32 @@ build/
 
 # ─────────────────── Virtual Environments ───────────────────
 .venv*/
-.venvdetector/
 venv/
 env/
 ENV/
 
 # ─────────────────── Model Weights (large) ──────────────────
-# Download or train locally — don't push to git
+# Trained locally — download from release or retrain
 models/*.pt
 models/*.pth
 models/*.onnx
 models/*.engine
 models/*.tflite
-*.pt
-*.pth
-*.onnx
+# Pretrained weights in root
+yolov8n.pt
+yolo26n.pt
 
 # ──────────────────── Datasets (large) ──────────────────────
-# Recreate via: python training/setup_tiger_dataset.py
+# Recreate via: python training/fill_dataset_gaps.py
+# Total: ~4.3 GB images + labels + crops + raw downloads
+multispecies_dataset/
 tiger_dataset/
-data/
-training/tiger_dataset/
-*.zip
-*.tar.gz
-*.tar
-*.h5
-*.hdf5
+
+# ──────────────────── Video Outputs (large) ─────────────────
+*.mp4
+*.avi
+*.mkv
+*.mov
 
 # ──────────────────── Database Files ────────────────────────
 *.db
@@ -51,6 +59,7 @@ training/tiger_dataset/
 *.db-shm
 *.sqlite
 *.sqlite3
+data/
 
 # ──────────────── Ultralytics / YOLO Runs ───────────────────
 runs/
@@ -63,11 +72,23 @@ wandb/
 .ipynb_checkpoints/
 *.ipynb
 
-# ──────────────── Test / Temp Artifacts ─────────────────────
+# ──────────────── Legacy / Test Artifacts ───────────────────
+# Legacy single-species scripts (superseded by training/)
+EndangeredSpeciesDetector.py
+setup_tiger_dataset.py
 smoke_test.py
-jivan-*
-*.tmp
-*.bak
+# Duplicate at root (canonical copy is in training/)
+qa_review_boxes.py
+# Demo folder (contains yolov8n.pt copy)
+spider_demo/
+# Test output files
+detector-*.jpg
+detector-*.txt
+detector-*.json
+# GBIF download artifact
+*.zip
+# Misc temp images
+image.png
 
 # ──────────────── IDE & Editor Files ────────────────────────
 .vscode/
@@ -125,5 +146,10 @@ coverage.xml
 *.env
 secrets.yaml
 .agents/
-
-image.png
+*.tar.gz
+*.tar
+*.h5
+*.hdf5
+*.tmp
+*.bak
+jivan-*

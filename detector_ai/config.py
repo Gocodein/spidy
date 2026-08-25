@@ -22,8 +22,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # ------------------------------------------------------------------
 # MODEL DEFAULTS
 # ------------------------------------------------------------------
-DEFAULT_YOLO_WEIGHTS = "yolov8n.pt"  # swap to your fine-tuned .pt once trained
-DEFAULT_CLASSIFIER_WEIGHTS = None     # set after training species classifier
+DEFAULT_YOLO_WEIGHTS = str(MODELS_DIR / "multispecies_best.pt")  # Phase 5 — 9-class detector (mAP50=83.4%, mAP50-95=68.6%)
+DEFAULT_CLASSIFIER_WEIGHTS = str(MODELS_DIR / "species_classifier_best.pth")  # Phase 5 — EfficientNetV2-S 9-class (val acc=97.32%)
 
 # ------------------------------------------------------------------
 # STAGE 1: DETECTOR — COCO class mappings (used until fine-tuned)
@@ -35,7 +35,18 @@ COCO_ANIMAL_CLASS_IDS = {15, 16, 17, 18, 19, 20, 21, 22, 23}
 COCO_HUMAN_CLASS_ID = 0          # 'person'
 COCO_VEHICLE_CLASS_IDS = {2, 3, 5, 7}  # car, motorcycle, bus, truck
 
-# After fine-tuning, your model will have its own class map:
+# Multi-species fine-tuned class map (9 classes)
+MULTISPECIES_CLASS_MAP = {
+    0: "bengal_tiger",
+    1: "asian_elephant",
+    2: "leopard",
+    3: "rhinoceros",
+    4: "person",
+    5: "cheetah",
+    6: "jaguar",
+    7: "snow_leopard",
+    8: "sloth_bear",
+}
 TIGER_CLASS_ID = 0
 TIGER_CLASS_NAME = "bengal_tiger"
 
@@ -74,6 +85,22 @@ GROUP_PROXIMITY_PX = 200
 # ------------------------------------------------------------------
 DISTURBANCE_DISTANCE_PX = 250    # pixel distance for proximity alert
 DISTURBANCE_CRITICAL_PX = 100    # very close — critical alert
+
+# Species-specific disturbance thresholds (pixels)
+# Elephants need wider radius due to size and herd behavior
+# Tigers and leopards need tighter monitoring (solitary stalkers)
+SPECIES_DISTURBANCE_THRESHOLDS = {
+    "bengal_tiger":    {"distance": 250, "critical": 100},
+    "asian_elephant":  {"distance": 350, "critical": 150},
+    "leopard":         {"distance": 250, "critical": 100},
+    "rhinoceros":      {"distance": 300, "critical": 120},
+    "cheetah":         {"distance": 250, "critical": 100},
+    "jaguar":          {"distance": 280, "critical": 110},
+    "snow_leopard":    {"distance": 250, "critical": 100},
+    "sloth_bear":      {"distance": 300, "critical": 120},
+    "person":          {"distance": 0,   "critical": 0},
+    "default":         {"distance": 250, "critical": 100},
+}
 
 # Behavior shift detection: if animal goes from calm → alert/fleeing
 # within this many frames of a human appearing, flag disturbance
@@ -146,7 +173,7 @@ class ClassifierConfig:
     epochs: int = 50
     lr: float = 1e-4
     weight_decay: float = 1e-4
-    num_classes: int = 1         # Bengal Tiger (binary: tiger vs not-tiger)
+    num_classes: int = 9         # 9 wildlife/human classes
     device: str = "cuda"
     amp: bool = True
 

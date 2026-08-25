@@ -92,7 +92,7 @@ def load_disturbances(conn) -> pd.DataFrame:
     """Load all disturbance events into a DataFrame."""
     try:
         df = pd.read_sql_query(
-            "SELECT * FROM disturbances ORDER BY timestamp ASC", conn,
+            "SELECT * FROM disturbance_events ORDER BY timestamp ASC", conn,
         )
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
@@ -194,7 +194,7 @@ if page == "📊 Overview":
             height=350,
             margin=dict(l=20, r=20, t=30, b=20),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     elif "frame_num" in det_df.columns:
         st.subheader("Detection Timeline (by frame)")
         frame_counts = det_df.groupby("frame_num").size().reset_index(name="count")
@@ -204,11 +204,11 @@ if page == "📊 Overview":
             color_discrete_sequence=["#f97316"],
         )
         fig.update_layout(template="plotly_dark", height=350)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # Recent detections table
     st.subheader("Recent Detections")
-    st.dataframe(det_df.tail(50).iloc[::-1], use_container_width=True, height=300)
+    st.dataframe(det_df.tail(50).iloc[::-1], width="stretch", height=300)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -236,7 +236,7 @@ elif page == "🦁 Species Analysis":
                 hole=0.4,
             )
             fig.update_layout(template="plotly_dark", height=380)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # Confidence histogram
     if "confidence" in det_df.columns:
@@ -248,7 +248,7 @@ elif page == "🦁 Species Analysis":
                 labels={"confidence": "Detection Confidence"},
             )
             fig.update_layout(template="plotly_dark", height=380)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # Detection heatmap (bbox centers)
     if all(c in det_df.columns for c in ("bbox_x1", "bbox_y1", "bbox_x2", "bbox_y2")):
@@ -261,7 +261,7 @@ elif page == "🦁 Species Analysis":
         )
         fig.update_yaxes(autorange="reversed")
         fig.update_layout(template="plotly_dark", height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -288,7 +288,7 @@ elif page == "🚶 Behavior Analysis":
             hole=0.4,
         )
         fig.update_layout(template="plotly_dark", height=380)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # Behavior over time per track
     with col_right:
@@ -305,7 +305,7 @@ elif page == "🚶 Behavior Analysis":
                     color_discrete_sequence=px.colors.qualitative.Set2,
                 )
                 fig.update_layout(template="plotly_dark", height=380)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
     # Behavior transition matrix
     st.subheader("Behavior Transition Matrix")
@@ -329,7 +329,7 @@ elif page == "🚶 Behavior Analysis":
                 labels=dict(x="To", y="From", color="Count"),
             )
             fig.update_layout(template="plotly_dark", height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.caption("No behavior transitions recorded yet.")
 

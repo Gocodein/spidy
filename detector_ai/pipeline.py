@@ -454,13 +454,16 @@ class DetectorAIPipeline:
     # ──────────────────────────────────────────────── cleanup
     def cleanup(self) -> None:
         """Release all held resources (video capture, writer, database)."""
+        released_any = False
 
         if self._cap is not None:
             self._cap.release()
             self._cap = None
+            released_any = True
         if self._writer is not None:
             self._writer.release()
             self._writer = None
+            released_any = True
         if self.cfg.show_display:
             cv2.destroyAllWindows()
         if self.db is not None:
@@ -469,6 +472,10 @@ class DetectorAIPipeline:
                     self.db.end_session(self._session_id)
                 except Exception:
                     logger.warning("Failed to end session cleanly.", exc_info=True)
+                self._session_id = None
             self.db.close()
+            self.db = None
+            released_any = True
 
-        logger.info("Pipeline resources released.")
+        if released_any:
+            logger.info("Pipeline resources released.")

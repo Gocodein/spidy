@@ -21,6 +21,7 @@ from pathlib import Path
 from detector_ai.config import (
     PipelineConfig,
     DEFAULT_YOLO_WEIGHTS,
+    DEFAULT_CLASSIFIER_WEIGHTS,
     DEFAULT_DB_PATH,
     DETECTION_CONF_THRESHOLD,
     DISTURBANCE_DISTANCE_PX,
@@ -65,8 +66,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--species-model",
-        default=None,
-        help="Path to species classifier weights. (default: None — skip classification)",
+        default=DEFAULT_CLASSIFIER_WEIGHTS,
+        help="Path to species classifier weights. (default: auto-detect from config)",
     )
     parser.add_argument(
         "--db",

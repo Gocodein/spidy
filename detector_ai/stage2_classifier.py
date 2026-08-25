@@ -35,8 +35,18 @@ _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 # Species labels — extend this list as more classes are added to the
-# training data.  Index 0 must match class 0 in the training set.
-_SPECIES_NAMES: List[str] = ["bengal_tiger"]
+# training data.  Index matches class index in the classifier.
+_SPECIES_NAMES: List[str] = [
+    "asian_elephant",
+    "bengal_tiger",
+    "cheetah",
+    "jaguar",
+    "leopard",
+    "person",
+    "rhinoceros",
+    "sloth_bear",
+    "snow_leopard",
+]
 
 
 class SpeciesClassifier:
@@ -146,17 +156,27 @@ class SpeciesClassifier:
         try:
             import timm  # late import to keep startup fast when disabled
 
+            checkpoint = torch.load(
+                str(weights_file),
+                map_location=self._device,
+            )
+
+            if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
+                if "classes" in checkpoint:
+                    global _SPECIES_NAMES
+                    _SPECIES_NAMES = checkpoint["classes"]
+                if "num_classes" in checkpoint:
+                    self._cfg.num_classes = checkpoint["num_classes"]
+            else:
+                state_dict = checkpoint
+
             self._model = timm.create_model(
                 self._cfg.model_name,
                 pretrained=False,
                 num_classes=self._cfg.num_classes,
             )
 
-            state_dict = torch.load(
-                str(weights_file),
-                map_location=self._device,
-                weights_only=True,
-            )
             self._model.load_state_dict(state_dict)
             self._model.to(self._device)
             self._model.eval()

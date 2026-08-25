@@ -102,6 +102,28 @@ class SpeciesCropDataset(Dataset):
         return img, label
 
 
+class TransformSubset(Dataset):
+    """Apply a transform to a ``random_split`` Subset.
+
+    Defined at module level (not inside ``main``) so that Windows
+    multi-process DataLoader workers can pickle it.
+    """
+
+    def __init__(self, subset, transform):
+        self.subset = subset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.subset)
+
+    def __getitem__(self, idx):
+        img_path, label = self.subset.dataset.samples[self.subset.indices[idx]]
+        img = Image.open(img_path).convert("RGB")
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+
 # ──────────────────────────────────────────── Transforms ──
 def build_train_transform(img_size: int) -> transforms.Compose:
     """Augmentation pipeline including IR-simulation and motion-blur proxy."""
@@ -277,20 +299,6 @@ def main(argv: list[str] | None = None) -> None:
     # Wrap subsets with appropriate transforms
     train_transform = build_train_transform(args.img_size)
     val_transform = build_val_transform(args.img_size)
-
-    class TransformSubset(Dataset):
-        """Apply a transform to a torch Subset."""
-        def __init__(self, subset, transform):
-            self.subset = subset
-            self.transform = transform
-        def __len__(self):
-            return len(self.subset)
-        def __getitem__(self, idx):
-            img_path, label = self.subset.dataset.samples[self.subset.indices[idx]]
-            img = Image.open(img_path).convert("RGB")
-            if self.transform:
-                img = self.transform(img)
-            return img, label
 
     train_ds = TransformSubset(train_ds_raw, train_transform)
     val_ds = TransformSubset(val_ds_raw, val_transform)

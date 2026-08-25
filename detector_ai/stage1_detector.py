@@ -62,11 +62,44 @@ class Detection:
 
 
 # ---------------------------------------------------------------------------
-# Helper: map a COCO class ID to a high-level category
+# Helper: map a class ID to a high-level category
 # ---------------------------------------------------------------------------
 
-def _categorize(class_id: int) -> Optional[str]:
-    """Return ``'animal'``, ``'human'``, ``'vehicle'``, or ``None``."""
+# Custom-trained species names that should be treated as 'animal'
+_CUSTOM_ANIMAL_NAMES = {
+    "bengal_tiger", "tiger", "leopard", "snow_leopard", "elephant",
+    "asian_elephant", "rhinoceros", "rhino", "cheetah", "jaguar",
+    "panther", "sloth_bear", "pangolin", "red_panda",
+}
+
+# COCO class names that are animals (fallback for COCO models)
+_COCO_ANIMAL_NAMES = {
+    "bird", "cat", "dog", "horse", "sheep", "cow",
+    "elephant", "bear", "zebra", "giraffe",
+}
+
+# COCO class names that are vehicles
+_COCO_VEHICLE_NAMES = {"car", "motorcycle", "bus", "truck"}
+
+
+def _categorize(class_id: int, class_name: str = "") -> Optional[str]:
+    """Return ``'animal'``, ``'human'``, ``'vehicle'``, or ``None``.
+
+    Handles both COCO-pretrained and custom fine-tuned models:
+    - Custom models: checks class_name against known animal species.
+    - COCO models: falls back to hardcoded class ID sets.
+    """
+    name_lower = class_name.lower().strip()
+
+    # --- Name-based matching (works for any model) ---
+    if name_lower in _CUSTOM_ANIMAL_NAMES or name_lower in _COCO_ANIMAL_NAMES:
+        return "animal"
+    if name_lower == "person":
+        return "human"
+    if name_lower in _COCO_VEHICLE_NAMES:
+        return "vehicle"
+
+    # --- Fallback: COCO class-ID-based matching ---
     if class_id in COCO_ANIMAL_CLASS_IDS:
         return "animal"
     if class_id == COCO_HUMAN_CLASS_ID:
@@ -204,7 +237,8 @@ class AnimalDetector:
             if conf < self.conf_threshold:
                 continue
 
-            category = _categorize(cid)
+            class_name = self._class_names.get(cid, f"class_{cid}")
+            category = _categorize(cid, class_name)
             if category is None:
                 continue  # skip classes we don't care about
 
@@ -218,7 +252,6 @@ class AnimalDetector:
             if track_ids is not None and idx < len(track_ids):
                 tid = int(track_ids[idx])
 
-            class_name = self._class_names.get(cid, f"class_{cid}")
 
             detections.append(
                 Detection(

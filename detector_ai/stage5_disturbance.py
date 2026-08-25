@@ -26,6 +26,7 @@ from detector_ai.config import (
     SEVERITY_HIGH,
     SEVERITY_LOW,
     SEVERITY_MEDIUM,
+    SPECIES_DISTURBANCE_THRESHOLDS,
 )
 
 # ---------------------------------------------------------------------------
@@ -160,6 +161,13 @@ class DisturbanceAnalyzer:
             # Feed history
             self.record_behavior(a_id, current_behavior, a_species)
 
+            # Species-specific thresholds
+            sp_thresh = SPECIES_DISTURBANCE_THRESHOLDS.get(
+                a_species, SPECIES_DISTURBANCE_THRESHOLDS["default"]
+            )
+            sp_distance = sp_thresh["distance"]
+            sp_critical = sp_thresh["critical"]
+
             # Check against every human / vehicle track
             closest_dist = float("inf")
             closest_human_id: Optional[int] = None
@@ -174,14 +182,16 @@ class DisturbanceAnalyzer:
                     closest_human_id = h_id
 
             # Skip if the closest human is beyond the outer threshold
-            if closest_dist > self.distance_threshold:
+            if closest_dist > sp_distance:
                 continue
 
             # Detect behaviour shift
             shifted, prev_behavior = self._detect_shift(a_id)
 
             # Compute severity
-            severity = self.compute_severity(closest_dist, shifted)
+            severity = self._compute_severity_species(
+                closest_dist, shifted, sp_distance, sp_critical
+            )
 
             # Build description
             desc = self._build_description(
@@ -242,6 +252,19 @@ class DisturbanceAnalyzer:
         if distance < self.distance_threshold:
             return SEVERITY_MEDIUM
 
+        return SEVERITY_LOW
+
+    def _compute_severity_species(
+        self, distance: float, behavior_shifted: bool,
+        sp_distance: float, sp_critical: float,
+    ) -> str:
+        within_critical = distance < sp_critical
+        if within_critical and behavior_shifted:
+            return SEVERITY_CRITICAL
+        if within_critical or behavior_shifted:
+            return SEVERITY_HIGH
+        if distance < sp_distance:
+            return SEVERITY_MEDIUM
         return SEVERITY_LOW
 
     # ------------------------------------------------------------------

@@ -51,6 +51,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output-dir", default=str(MODELS_DIR),
         help="Directory to copy the best weights into.",
     )
+    parser.add_argument(
+        "--weights-name", default=None,
+        help="Filename for the best weights file (e.g. multispecies_best.pt). Defaults to <name>_best.pt.",
+    )
     parser.add_argument("--epochs", type=int, default=tc.epochs)
     parser.add_argument("--batch", type=int, default=tc.batch_size)
     parser.add_argument("--imgsz", type=int, default=tc.img_size)
@@ -59,7 +63,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=tc.workers)
     parser.add_argument("--no-amp", action="store_true", help="Disable mixed-precision.")
     parser.add_argument("--project", default=str(PROJECT_ROOT / "runs" / "detect"))
-    parser.add_argument("--name", default="tiger_finetune")
+    parser.add_argument("--name", default="multispecies_finetune")
+    parser.add_argument("--erasing", type=float, default=0.4, help="Random erasing / cutout probability for occlusion simulation.")
+    parser.add_argument("--degrees", type=float, default=10.0, help="Random rotation degrees.")
+    parser.add_argument("--scale", type=float, default=0.5, help="Image scale gain (+/- gain).")
 
     return parser.parse_args(argv)
 
@@ -115,6 +122,9 @@ def main(argv: list[str] | None = None) -> None:
         hsv_v=tc.hsv_v,
         flipud=tc.flipud,
         fliplr=tc.fliplr,
+        degrees=args.degrees,
+        scale=args.scale,
+        erasing=args.erasing,
         device=args.device,
         amp=not args.no_amp,
         workers=args.workers,
@@ -130,7 +140,8 @@ def main(argv: list[str] | None = None) -> None:
 
     run_dir = Path(args.project) / args.name
     best_pt = run_dir / "weights" / "best.pt"
-    dest_pt = out_dir / "tiger_detector_best.pt"
+    weights_name = args.weights_name or ("multispecies_best.pt" if "multispecies" in str(data_path).lower() else f"{args.name}_best.pt")
+    dest_pt = out_dir / weights_name
 
     if best_pt.exists():
         shutil.copy2(best_pt, dest_pt)
