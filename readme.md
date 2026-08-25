@@ -1,253 +1,241 @@
-# 🐯 DETECTOR AI
+# 🐾 DETECTOR AI — Multi-Species Wildlife Detection & Monitoring System
 
-> **Real-time endangered species detection, tracking, and human-disturbance analysis using deep learning.**
+> **Real-time 9-class endangered species detection, multi-object tracking, behavior kinematics, and human-disturbance analysis using deep learning.**
 
-DETECTOR AI is a 6-stage AI pipeline designed for wildlife conservation researchers. It detects endangered animals (initially Bengal Tigers) in video feeds, tracks their behavior, identifies human disturbance, and logs everything to a searchable database with a live research dashboard.
+[![Python 3.10](https://img.shields.io/badge/Python-3.10-blue.svg)](https://www.python.org/downloads/release/python-31011/)
+[![PyTorch 2.5](https://img.shields.io/badge/PyTorch-2.5%20CUDA%2012.1-EE4C2C.svg)](https://pytorch.org/)
+[![Ultralytics YOLOv8](https://img.shields.io/badge/YOLOv8-8.4.127-00FFFF.svg)](https://github.com/ultralytics/ultralytics)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Optimized for **NVIDIA RTX 4050 (6 GB VRAM)** with mixed-precision inference.
+**DETECTOR AI** is an end-to-end 6-stage AI pipeline engineered for wildlife conservation researchers, national park authorities, and automated camera traps. It detects 8 major endangered animal species (plus humans), tracks their movements persistently, classifies fine-grained behavior states, analyzes potential human-wildlife disturbance events in real time, and logs structured analytics to an interactive dashboard.
+
+Optimized for **NVIDIA GeForce RTX 4050 (6 GB VRAM)** with automatic mixed-precision (AMP).
 
 ---
 
-## Architecture
+## 🎯 Target Species & Classes
+
+The system detects and differentiates across **9 distinct classes**, including rare color morphs:
+
+| Class ID | Species / Entity | Scientific Name | Special Morphs Handled |
+| :---: | :--- | :--- | :--- |
+| `0` | **Bengal Tiger** | *Panthera tigris tigris* | Includes White Tiger morph |
+| `1` | **Asian Elephant** | *Elephas maximus* | Adult & juvenile herd profiles |
+| `2` | **Leopard** | *Panthera pardus* | Includes Melanistic (Black Panther) morph |
+| `3` | **Greater One-Horned Rhinoceros** | *Rhinoceros unicornis* | Typical camera-trap and habitat poses |
+| `4` | **Person / Human** | *Homo sapiens* | Disturbance triggers & perimeter alerts |
+| `5` | **Cheetah** | *Acinonyx jubatus* | Distinct spot pattern & slender build |
+| `6` | **Jaguar** | *Panthera onca* | Rosette pattern recognition |
+| `7` | **Snow Leopard** | *Panthera uncia* | Mountain camouflage & thick coat features |
+| `8` | **Sloth Bear** | *Melursus ursinus* | Characteristic chest mark & shaggy fur |
+
+---
+
+## 📊 Benchmark & Model Performance
+
+### Stage 1: YOLOv8n Multi-Species Detector (`models/multispecies_best.pt`)
+- **Parameters**: 3.01M (6.2 MB)
+- **Validation Dataset**: 1,053 images / 1,441 bounding box instances
+
+| Class | Precision | Recall | mAP50 | mAP50-95 |
+| :--- | :---: | :---: | :---: | :---: |
+| **All Classes (Overall)** | **86.7%** | **76.6%** | **83.4%** | **68.6%** |
+| Sloth Bear | 96.5% | 88.7% | 94.1% | 83.5% |
+| Jaguar | 94.6% | 92.7% | 95.2% | 79.0% |
+| Snow Leopard | 84.4% | 82.9% | 85.0% | 78.4% |
+| Asian Elephant | 88.9% | 76.5% | 86.3% | 73.2% |
+| Rhinoceros | 90.6% | 76.8% | 84.1% | 72.5% |
+| Cheetah | 85.8% | 78.8% | 82.6% | 68.0% |
+| Bengal Tiger | 79.7% | 69.4% | 78.4% | 60.7% |
+| Leopard | 81.2% | 65.4% | 73.7% | 59.8% |
+| Person | 78.8% | 58.3% | 71.4% | 42.5% |
+
+### Stage 2: EfficientNetV2-S Species Classifier (`models/species_classifier_best.pth`)
+- **Architecture**: `tf_efficientnetv2_s` (20.19M parameters, 78 MB)
+- **Dataset**: 9,517 bounding-box crops across 9 classes
+- **Top-1 Validation Accuracy**: **`97.32%`**
+- **Inference Speed**: ~4.5 ms per crop (GPU)
+
+---
+
+## 🏗️ System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        DETECTOR AI PIPELINE                        │
-├────────┬────────┬────────┬────────┬─────────────┬──────────────────┤
-│        │        │        │        │             │                  │
-│  Stage 1  Stage 2  Stage 3  Stage 4    Stage 5      Stage 6       │
-│        │        │        │        │             │                  │
-│ ┌──────┴─┐ ┌───┴────┐ ┌┴──────┐ ┌┴──────────┐ ┌┴───────────┐ ┌──┴────────┐
-│ │ YOLOv8 │ │EffNet  │ │ Byte  │ │ Behavior  │ │ Disturbance│ │ SQLite DB │
-│ │Detector│→│V2-S    │→│Track  │→│ Estimator │→│  Analyzer  │→│ + Alerts  │
-│ │        │ │Classif.│ │       │ │           │ │            │ │ + Dashbd  │
-│ └────────┘ └────────┘ └───────┘ └───────────┘ └────────────┘ └───────────┘
-│                                                                     │
-│ Frame ──→ Detections ──→ Tracks ──→ Behaviors ──→ Events ──→ Logs  │
-└─────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                     DETECTOR AI PIPELINE                                       │
+├──────────────┬──────────────┬──────────────┬──────────────┬──────────────────┬─────────────────┤
+│   Stage 1    │   Stage 2    │   Stage 3    │   Stage 4    │     Stage 5      │     Stage 6     │
+├──────────────┼──────────────┼──────────────┼──────────────┼──────────────────┼─────────────────┤
+│ ┌──────────┐ │ ┌──────────┐ │ ┌──────────┐ │ ┌──────────┐ │ ┌──────────────┐ │ ┌─────────────┐ │
+│ │  YOLOv8  │ │ │Efficient-│ │ │  Byte-   │ │ │ Behavior │ │ │ Disturbance  │ │ │ SQLite DB   │ │
+│ │ Detector │→│ │  NetV2-S │→│ │  Track   │→│ │Kinematics│→│ │   Analyzer   │→│ │ + Alerts    │ │
+│ └──────────┘ │ └──────────┘ │ └──────────┘ │ └──────────┘ │ └──────────────┘ │ │ + Dashboard │ │
+│              │              │              │              │                  │ └─────────────┘ │
+│ Frame ───────┴─→ Crop ──────┴─→ Trajectory─┴─→ States ────┴─→ Proximity Event─┴─→ SQLite Logs  │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Stage | Module | Model / Method | Output |
-|-------|--------|---------------|--------|
-| 1 | `stage1_detector.py` | YOLOv8n (fine-tuned) | Bounding boxes + class |
-| 2 | `stage2_classifier.py` | EfficientNetV2-S (timm) | Species label + confidence |
-| 3 | `stage3_tracker.py` | ByteTrack / BoTSORT | Persistent track IDs |
-| 4 | `stage4_behavior.py` | Trajectory kinematics | Behavior state (resting/walking/running/alert/fleeing) |
-| 5 | `stage5_disturbance.py` | Proximity + behavior shift | Disturbance events with severity |
-| 6 | `stage6_logging.py` | SQLite + AlertManager | Persistent logs + real-time alerts |
+| Stage | Module | Implementation | Function |
+|:---:|---|---|---|
+| **1** | `stage1_detector.py` | YOLOv8n (9 classes) | Real-time object localization and initial bounding box detection |
+| **2** | `stage2_classifier.py` | EfficientNetV2-S | Fine-grained species classification and verification on high-res crops |
+| **3** | `stage3_tracker.py` | ByteTrack / BoTSORT | Multi-object tracking with persistent identity across frames |
+| **4** | `stage4_behavior.py` | Trajectory Kinematics | Real-time state estimation: *Resting*, *Walking*, *Running/Fleeing*, *Alert/Pacing*, *Stalking*, *Observing* |
+| **5** | `stage5_disturbance.py` | Spatial Proximity & Dynamics | Evaluates species-specific proximity buffers against humans and flags sudden behavioral shifts |
+| **6** | `stage6_logging.py` | SQLite3 + Console Alerts | Structured logging of tracks, kinematics, and disturbance events with instant notifications |
 
 ---
 
-## Features
+## ✨ Features
 
-- 🎯 **Real-time Detection** — YOLOv8-based animal/human/vehicle detection at 30+ FPS
-- 🐯 **Species Classification** — Fine-grained EfficientNetV2-S classifier for endangered species
-- 🔗 **Multi-Object Tracking** — ByteTrack/BoTSORT for persistent identity across frames
-- 🧠 **Behavior Recognition** — Trajectory-based behavior classification (resting, walking, running, alert, fleeing, stalking)
-- ⚠️ **Disturbance Detection** — Automatic human-wildlife proximity and behavior-shift analysis
-- 📊 **Research Dashboard** — Interactive Streamlit + Plotly dashboard for data exploration
-- 💾 **Persistent Logging** — SQLite database with full event history
-- 🖥️ **Live HUD** — Annotated video overlay with FPS, track counts, trajectory lines, and disturbance banners
-- ⚡ **RTX 4050 Optimized** — Mixed-precision (AMP) throughout for 6 GB VRAM
+- ⚡ **High FPS Pipeline**: 30–45+ FPS real-time processing on consumer RTX GPUs.
+- 🎯 **2-Stage Cascaded Precision**: YOLOv8 locates entities; EfficientNetV2-S verifies subtle markings (e.g., jaguar rosettes vs leopard spots).
+- 🧭 **Behavior Kinematics**: Computes velocity, directional variance, acceleration, and dwell time across track histories.
+- ⚠️ **Species-Specific Disturbance Radii**: Configurable threshold buffers (e.g., 350px for elephants, 250px for solitary big cats).
+- 🖥️ **Live HUD Overlay**: Real-time bounding boxes (green=safe, red=disturbed, blue=human), trajectory tails, and alert banners.
+- 📊 **Research Dashboard**: Interactive Streamlit + Plotly interface for spatial heatmaps, transition matrices, and CSV data export.
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Install
+### 1. Clone & Setup Environment
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/detector-ai.git
-cd detector-ai
+git clone https://github.com/Gocodein/spidy.git
+cd spidy
 
-# Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Linux/Mac
+# Create and activate virtual environment
+python -m venv .venv310
+.venv310\Scripts\activate        # Windows
+# source .venv310/bin/activate   # Linux / macOS
 
-# Install PyTorch with CUDA (RTX 4050)
+# Install PyTorch with CUDA 12.1 support
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
-# Install dependencies
+# Install required dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Run Detection
+### 2. Run Live Detection & Video Processing
 
 ```bash
-# Webcam (default)
-python run_detector.py
+# 1. Run live webcam feed (loads 9-class detector and classifier by default)
+python run_detector.py --source 0 --show
 
-# Video file
-python run_detector.py -s wildlife_clip.mp4
+# 2. Process a recorded wildlife video file
+python run_detector.py --source wildlife_sample.mp4 --show
 
-# With fine-tuned model
-python run_detector.py -m models/tiger_detector_best.pt --species-model models/species_classifier_best.pth
+# 3. Save annotated output with HUD overlay
+python run_detector.py --source input.mp4 --save-video output_annotated.mp4
 
-# RTSP camera stream
-python run_detector.py -s rtsp://192.168.1.100:8554/live
+# 4. Connect to an RTSP IP camera stream
+python run_detector.py --source rtsp://192.168.1.100:8554/live --show
 
-# Save annotated output
-python run_detector.py -s input.mp4 --save-video output.mp4
-
-# All options
+# View all CLI options:
 python run_detector.py --help
 ```
 
-### 3. Launch Dashboard
+### 3. Launch Research Dashboard
 
 ```bash
 streamlit run dashboard/app.py
 ```
-
-Open [http://localhost:8501](http://localhost:8501) to explore detection data, species analytics, behavior patterns, and disturbance events.
+Open **[http://localhost:8501](http://localhost:8501)** in your browser to review session stats, behavior timelines, disturbance frequency, and export event logs.
 
 ---
 
-## Training
+## 🔬 Dataset & Training Pipeline
 
-### Dataset Setup
-
-```bash
-# Download and prepare the Bengal Tiger dataset
-# (requires internet access to GBIF, LILA BC, and MegaDetector)
-python training/setup_tiger_dataset.py
-
-# Review auto-generated bounding boxes
-python training/qa_review_boxes.py flag    # generates HTML review sheet
-# ... review in browser, export rejected.txt ...
-python training/qa_review_boxes.py apply   # removes bad boxes
-```
-
-### Fine-Tune Detector (YOLOv8)
+The project includes automated pipelines for dataset acquisition, auto-labeling, and model fine-tuning:
 
 ```bash
-python training/train_detector.py --data tiger_dataset/tiger_data.yaml
+# 1. Download multi-species training data from iNaturalist, WCS, and COCO
+python training/download_phase5_data.py
 
-# Custom settings
-python training/train_detector.py \
-    --data tiger_dataset/tiger_data.yaml \
-    --model yolov8s.pt \
-    --epochs 150 \
-    --batch 8 \
-    --imgsz 640
-```
+# 2. Fill class distribution gaps via Wikimedia Commons and relaxed filters
+python training/fill_dataset_gaps.py
 
-### Fine-Tune Species Classifier (EfficientNetV2-S)
+# 3. Train YOLOv8n detector (120 epochs)
+python training/train_detector.py --data multispecies_dataset/data.yaml --epochs 120 --name phase5_9class
 
-```bash
-# Prepare crops directory:
-#   training/tiger_dataset/crops/bengal_tiger/  (positive)
-#   training/tiger_dataset/crops/not_tiger/     (negative)
+# 4. Extract bounding-box crops for classifier
+python training/extract_crops.py
 
-python training/train_classifier.py --data training/tiger_dataset/crops
-
-# Custom settings
-python training/train_classifier.py \
-    --data training/tiger_dataset/crops \
-    --epochs 30 \
-    --batch 16 \
-    --lr 1e-4
+# 5. Train EfficientNetV2-S species classifier (50 epochs)
+python training/train_classifier.py --data multispecies_dataset/crops --epochs 50
 ```
 
 ---
 
-## Hardware Requirements
+## 💻 Hardware Requirements
 
 | Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| GPU | NVIDIA GTX 1060 (6 GB) | **NVIDIA RTX 4050 (6 GB)** |
-| CUDA | 11.8+ | 12.1+ |
-| RAM | 8 GB | 16 GB |
-| Storage | 5 GB (models + DB) | 20 GB (with datasets) |
-| CPU | 4 cores | 8+ cores |
-| Python | 3.10+ | 3.10 |
-
-> **Note:** Mixed-precision (AMP) is enabled by default and is critical for fitting within 6 GB VRAM during both training and inference.
+|---|---|---|
+| **GPU** | NVIDIA GTX 1660 (6 GB) | **NVIDIA RTX 4050 / RTX 3060 (6 GB+)** |
+| **CUDA** | 11.8+ | **12.1+** |
+| **System RAM** | 8 GB | **16 GB** |
+| **Storage** | 2 GB (code + weights) | **10 GB** (with full training datasets) |
+| **Python** | 3.10+ | **3.10.11** |
 
 ---
 
-## Project Structure
+## 📁 Repository Structure
 
 ```
 Detector/
-├── detector_ai/                  # Core pipeline package
+├── detector_ai/                     # Core pipeline package
 │   ├── __init__.py
-│   ├── config.py                 # Central configuration & dataclasses
-│   ├── pipeline.py               # Main pipeline orchestrator
-│   ├── stage1_detector.py        # YOLOv8 animal/human/vehicle detector
-│   ├── stage2_classifier.py      # EfficientNetV2-S species classifier
-│   ├── stage3_tracker.py         # ByteTrack multi-object tracker
-│   ├── stage4_behavior.py        # Trajectory-based behavior estimator
-│   ├── stage5_disturbance.py     # Human-disturbance analyser
-│   └── stage6_logging.py         # SQLite logging & alert manager
+│   ├── config.py                    # 9-class configuration & spatial thresholds
+│   ├── pipeline.py                  # 6-stage pipeline orchestrator & HUD renderer
+│   ├── stage1_detector.py           # YOLOv8 9-class object detector
+│   ├── stage2_classifier.py         # EfficientNetV2-S fine-grained species classifier
+│   ├── stage3_tracker.py            # ByteTrack multi-object persistent tracking
+│   ├── stage4_behavior.py           # Kinematics behavior estimator
+│   ├── stage5_disturbance.py        # Species-specific disturbance analyzer
+│   └── stage6_logging.py            # SQLite database logger & console alerts
 │
-├── training/                     # Training scripts & data preparation
-│   ├── setup_tiger_dataset.py    # Dataset download & YOLO formatting
-│   ├── qa_review_boxes.py        # Bounding box QA review tool
-│   ├── train_detector.py         # YOLOv8 fine-tuning script
-│   └── train_classifier.py       # EfficientNetV2-S training script
+├── training/                        # Training & dataset generation scripts
+│   ├── download_phase5_data.py      # Primary dataset downloader (iNat, WCS, COCO)
+│   ├── fill_dataset_gaps.py         # Gap filler & auto-annotator (Wikimedia, iNat)
+│   ├── extract_crops.py             # Bounding box crop extractor for Stage 2
+│   ├── train_detector.py            # YOLOv8 detector fine-tuning script
+│   └── train_classifier.py          # EfficientNetV2-S classifier training script
 │
-├── dashboard/                    # Research dashboard
-│   └── app.py                    # Streamlit + Plotly dashboard
+├── dashboard/                       # Research dashboard
+│   └── app.py                       # Streamlit interactive analysis tool
 │
-├── models/                       # Trained model weights (gitignored)
-├── data/                         # SQLite database & runtime data
-├── runs/                         # Training run outputs (gitignored)
+├── models/                          # Trained model checkpoints (gitignored)
+│   ├── multispecies_best.pt         # Best 9-class YOLOv8 weights (mAP50=83.4%)
+│   └── species_classifier_best.pth  # Best 9-class EfficientNetV2-S weights (acc=97.32%)
 │
-├── run_detector.py               # CLI entry point
-├── requirements.txt              # Python dependencies
-└── README.md                     # This file
+├── run_detector.py                  # Main CLI entry point
+├── requirements.txt                 # Python dependencies
+├── project_guide.md                 # Technical architecture guide
+├── project_checklist.md             # Project milestones and status
+└── README.md                        # Documentation
 ```
 
 ---
 
-## CLI Reference
+## 📜 License
 
-```
-usage: run_detector [-h] [-s SOURCE] [-m MODEL] [--species-model PATH]
-                    [--db DB] [--show | --no-show] [--save-video PATH]
-                    [--conf FLOAT] [--disturbance-dist INT]
-                    [--frame-skip N] [-v]
-
-DETECTOR AI — Real-time endangered species detection & tracking.
-
-options:
-  -s, --source        Video source: 0 (webcam), file path, or RTSP URL
-  -m, --model         YOLO weights path (default: yolov8n.pt)
-  --species-model     Species classifier weights (default: None)
-  --db                SQLite database path (default: data/wildlife_events.db)
-  --show / --no-show  Display live window (default: --show)
-  --save-video        Save annotated output video
-  --conf              Detection confidence threshold (default: 0.35)
-  --disturbance-dist  Disturbance distance in pixels (default: 250)
-  --frame-skip        Process every N-th frame (default: 0 = all)
-  -v, --verbose       Enable debug logging
-```
+Distributed under the **MIT License**. See `LICENSE` for details.
 
 ---
 
-## License
+## 🤝 Credits & Acknowledgments
 
-This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
-
----
-
-## Credits & Data Sources
-
-| Resource | Usage |
-|----------|-------|
-| [LILA BC](https://lila.science) | Wildlife camera trap datasets (WCS Camera Traps) |
-| [GBIF](https://www.gbif.org) | Rajaji National Park tiger occurrence data |
-| [Microsoft MegaDetector](https://github.com/microsoft/CameraTraps) | Auto-labeling bounding boxes for weakly-labeled images |
-| [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) | Object detection backbone |
-| [timm](https://github.com/huggingface/pytorch-image-models) | EfficientNetV2-S pre-trained weights |
-| [ByteTrack](https://github.com/ifzhang/ByteTrack) | Multi-object tracking algorithm |
+- **[iNaturalist](https://www.inaturalist.org)** — High-resolution biodiversity photographic observations.
+- **[LILA BC & WCS](https://lila.science/datasets/wcscameratraps)** — Camera trap datasets for wildlife conservation.
+- **[COCO Dataset](https://cocodataset.org)** — Diverse human localization annotations.
+- **[Wikimedia Commons](https://commons.wikimedia.org)** — Open educational wildlife media repositories.
+- **[Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)** — State-of-the-art real-time detection framework.
+- **[Ross Wightman / PyTorch Image Models (timm)](https://github.com/huggingface/pytorch-image-models)** — EfficientNetV2 backbones.
 
 ---
 
 <p align="center">
-  <b>🐯 Built for wildlife conservation researchers 🌿</b>
+  <b>🐾 Developed for Automated Wildlife Conservation & Research 🌿</b>
 </p>
-# spidy
