@@ -5,6 +5,17 @@
 # Protected under Indian Patent Application No. 202531071175 A
 # ==============================================================================
 
+# IMPORTANT: ZeroGPU requires importing `spaces` BEFORE any CUDA-related library
+try:
+    import spaces
+    HAS_SPACES = True
+except ImportError:
+    spaces = None
+    HAS_SPACES = False
+
+import os
+os.environ["YOLO_CONFIG_DIR"] = "/tmp"
+
 import sys
 from pathlib import Path
 import cv2
@@ -32,15 +43,8 @@ if Path(DEFAULT_CLASSIFIER_WEIGHTS).exists():
     except Exception as e:
         print(f"Classifier load warning: {e}")
 
-# ZeroGPU support for Hugging Face Spaces
-try:
-    import spaces
-    HAS_SPACES = True
-except ImportError:
-    HAS_SPACES = False
 
-
-def detect_wildlife(image: np.ndarray, conf_threshold: float, enable_stage2: bool):
+def _detect_impl(image: np.ndarray, conf_threshold: float, enable_stage2: bool):
     if image is None:
         return None, pd.DataFrame(), "ℹ️ Please upload or capture an image."
     
@@ -123,7 +127,9 @@ def detect_wildlife(image: np.ndarray, conf_threshold: float, enable_stage2: boo
 
 
 if HAS_SPACES:
-    detect_wildlife = spaces.GPU(detect_wildlife)
+    detect_wildlife = spaces.GPU(_detect_impl)
+else:
+    detect_wildlife = _detect_impl
 
 
 # Gradio Interface
