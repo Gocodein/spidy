@@ -17,7 +17,7 @@ import sys
 import sqlite3
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 
 import cv2
 import numpy as np
@@ -35,9 +35,8 @@ from detector_ai.config import (
     DEFAULT_CLASSIFIER_WEIGHTS,
     MULTISPECIES_CLASS_MAP,
     SPECIES_DISTURBANCE_THRESHOLDS,
+    PROJECT_ROOT,
 )
-from detector_ai.stage1_detector import AnimalDetector
-from detector_ai.stage2_classifier import SpeciesClassifier
 
 # ──────────────────────────────────────────────── Page Configuration ──
 
@@ -63,7 +62,7 @@ st.markdown("""
         background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
-        padding: 20px 16px;
+        padding: 18px 14px;
         text-align: center;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
         backdrop-filter: blur(8px);
@@ -75,18 +74,18 @@ st.markdown("""
     }
     .metric-card h2 {
         color: #f97316;
-        font-size: 2.2rem;
+        font-size: 2.1rem;
         font-weight: 700;
         margin: 0;
         letter-spacing: -0.02em;
     }
     .metric-card p {
         color: #94a3b8;
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        margin: 6px 0 0 0;
+        margin: 5px 0 0 0;
     }
     
     .patent-badge {
@@ -120,32 +119,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ──────────────────────────────────────────────── Database Helpers ──
+# ──────────────────────────────── Fast Cached Database Helpers ──
 
-@st.cache_resource
-def get_db_connection(db_path: str):
-    """Return a sqlite3 connection (cached across reruns)."""
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    return conn
-
-
-def load_sessions(conn) -> pd.DataFrame:
-    """Load session summary rows into a DataFrame."""
+@st.cache_data(ttl=60, show_spinner=False)
+def load_sessions_cached(path_str: str) -> pd.DataFrame:
+    """Load session summary rows into a DataFrame (cached in RAM)."""
     try:
-        df = pd.read_sql_query("SELECT * FROM sessions ORDER BY id DESC", conn)
+        with sqlite3.connect(path_str) as conn:
+            df = pd.read_sql_query("SELECT * FROM sessions ORDER BY id DESC", conn)
         return df
     except Exception:
         return pd.DataFrame()
 
 
-def load_detections(conn, session_id: Optional[int] = None) -> pd.DataFrame:
-    """Load detection rows into a DataFrame, optionally filtered by session_id."""
+@st.cache_data(ttl=60, show_spinner=False)
+def load_detections_cached(path_str: str, session_id: Optional[int] = None) -> pd.DataFrame:
+    """Load detection rows into a DataFrame (cached in RAM)."""
     try:
         query = "SELECT * FROM detections"
         if session_id is not None:
             query += f" WHERE session_id = {session_id}"
         query += " ORDER BY timestamp ASC"
-        df = pd.read_sql_query(query, conn)
+        with sqlite3.connect(path_str) as conn:
+            df = pd.read_sql_query(query, conn)
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
         return df
@@ -153,14 +149,16 @@ def load_detections(conn, session_id: Optional[int] = None) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def load_disturbances(conn, session_id: Optional[int] = None) -> pd.DataFrame:
-    """Load disturbance events into a DataFrame, optionally filtered by session_id."""
+@st.cache_data(ttl=60, show_spinner=False)
+def load_disturbances_cached(path_str: str, session_id: Optional[int] = None) -> pd.DataFrame:
+    """Load disturbance events into a DataFrame (cached in RAM)."""
     try:
         query = "SELECT * FROM disturbance_events"
         if session_id is not None:
             query += f" WHERE session_id = {session_id}"
         query += " ORDER BY timestamp ASC"
-        df = pd.read_sql_query(query, conn)
+        with sqlite3.connect(path_str) as conn:
+            df = pd.read_sql_query(query, conn)
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
         return df
@@ -168,7 +166,7 @@ def load_disturbances(conn, session_id: Optional[int] = None) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-# ──────────────────────────────── Species Icons & Theme ──
+# ──────────────────────────────── Species Icons & Formatting ──
 
 SPECIES_EMOJIS = {
     "bengal_tiger": "🐯",
@@ -201,12 +199,11 @@ st.sidebar.markdown("---")
 # Database selector
 db_path = st.sidebar.text_input("Database path", value=str(DEFAULT_DB_PATH))
 
-if st.sidebar.button("🔄 Refresh Data", use_container_width=True):
+if st.sidebar.button("🔄 Fast Cache Refresh", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
 
-conn = get_db_connection(db_path)
-sessions_df = load_sessions(conn)
+sessions_df = load_sessions_cached(db_path)
 
 # Session Filter
 selected_session: Optional[int] = None
@@ -238,9 +235,9 @@ st.sidebar.info(
     "**Pipeline**: 9-Class YOLOv8 + EfficientNetV2-S (97.32% Acc)"
 )
 
-# Load data based on filter
-det_df = load_detections(conn, session_id=selected_session)
-dist_df = load_disturbances(conn, session_id=selected_session)
+# Load data based on filter with RAM caching
+det_df = load_detections_cached(db_path, session_id=selected_session)
+dist_df = load_disturbances_cached(db_path, session_id=selected_session)
 no_data = det_df.empty
 
 
@@ -280,13 +277,13 @@ if page == "📊 Overview":
     with c1:
         metric_card("Total Detections", f"{total_det:,}", "📍")
     with c2:
-        metric_card("Unique Tracked Animals", f"{unique_tracks:,}", "🔗")
+        metric_card("Tracked Entities", f"{unique_tracks:,}", "🔗")
     with c3:
         metric_card("Species Detected", f"{unique_species}/9", "🦁")
     with c4:
-        metric_card("Disturbance Incidents", f"{total_dist:,}", "⚠️")
+        metric_card("Disturbance Alerts", f"{total_dist:,}", "⚠️")
     with c5:
-        metric_card("Critical Alerts", f"{critical_dist:,}", "🚨")
+        metric_card("Critical Threats", f"{critical_dist:,}", "🚨")
 
     st.markdown("---")
 
@@ -510,77 +507,148 @@ elif page == "⚠️ Disturbance Threat Radar":
 
 
 # ═══════════════════════════════════════════════════════════════
-# PAGE 5: Live AI Inference Playground
+# PAGE 5: Live AI Inference Playground (Optimized)
 # ═══════════════════════════════════════════════════════════════
 
 elif page == "🔬 Live AI Inference Playground":
     st.title("🔬 Live AI Model Inference Playground")
-    st.caption("Upload any wildlife image to test the 9-Class YOLOv8 Detector and EfficientNetV2-S Classifier in real-time.")
+    st.caption("Upload any wildlife image or test built-in samples to evaluate Stage 1 (YOLOv8) & Stage 2 (EfficientNetV2-S).")
 
-    uploaded_file = st.file_uploader("Upload Image (JPG, PNG, JPEG)", type=["jpg", "jpeg", "png"])
+    # Dynamic Model Loader
+    @st.cache_resource(show_spinner=False)
+    def load_ai_models_cached(yolo_path: str, cls_path: str):
+        try:
+            import torch
+            from ultralytics import YOLO
+            from detector_ai.stage2_classifier import SpeciesClassifier
 
-    @st.cache_resource
-    def load_ai_models():
-        detector = AnimalDetector(weights=DEFAULT_YOLO_WEIGHTS, conf_threshold=0.30, tracker="bytetrack.yaml")
-        classifier = SpeciesClassifier(weights_path=DEFAULT_CLASSIFIER_WEIGHTS, conf_threshold=0.50, device="cuda")
-        return detector, classifier
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            yolo_model = YOLO(yolo_path)
+            
+            classifier = None
+            if Path(cls_path).exists():
+                try:
+                    classifier = SpeciesClassifier(weights_path=cls_path, conf_threshold=0.30, device=device)
+                except Exception as e:
+                    st.warning(f"Classifier load warning: {e}")
+            return yolo_model, classifier, device
+        except Exception as err:
+            return None, None, f"Error: {err}"
 
-    try:
-        detector, classifier = load_ai_models()
-        model_loaded = True
-    except Exception as e:
-        st.error(f"Failed to load AI models: {e}")
-        model_loaded = False
+    yolo_model, classifier, dev_status = load_ai_models_cached(
+        str(DEFAULT_YOLO_WEIGHTS),
+        str(DEFAULT_CLASSIFIER_WEIGHTS),
+    )
 
-    if uploaded_file and model_loaded:
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        img_bgr = cv2.imdecode(file_bytes, 1)
+    if yolo_model is None:
+        st.error(f"Failed to load detection models: {dev_status}")
+        st.stop()
 
+    # Controls Bar
+    ctrl1, ctrl2, ctrl3 = st.columns([2, 2, 2])
+    with ctrl1:
+        conf_thresh = st.slider("Detection Confidence Threshold", 0.10, 0.90, 0.25, 0.05)
+    with ctrl2:
+        enable_stage2 = st.checkbox("Enable Stage 2 Classifier (EfficientNetV2-S)", value=True)
+    with ctrl3:
+        st.markdown(f"**Compute Device:** `{dev_status.upper()}`")
+
+    st.markdown("---")
+
+    # Sample selector or file upload
+    tab1, tab2 = st.tabs(["📁 Upload Image File", "🐾 Test with Dataset Samples"])
+    
+    img_bgr: Optional[np.ndarray] = None
+
+    with tab1:
+        uploaded_file = st.file_uploader("Choose an image (JPG, PNG, JPEG)", type=["jpg", "jpeg", "png"])
+        if uploaded_file:
+            file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+            img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+    with tab2:
+        sample_dir = PROJECT_ROOT / "multispecies_dataset" / "images" / "val"
+        sample_files = list(sample_dir.glob("*.jpg"))[:12] if sample_dir.exists() else []
+        if sample_files:
+            sample_names = [f.name for f in sample_files]
+            chosen_sample = st.selectbox("Select sample test image:", sample_names)
+            if chosen_sample:
+                sample_path = sample_dir / chosen_sample
+                img_bgr = cv2.imread(str(sample_path))
+        else:
+            st.info("Sample directory not found.")
+
+    if img_bgr is not None:
         col1, col2 = st.columns(2)
+        h, w = img_bgr.shape[:2]
+
         with col1:
             st.subheader("Original Image")
             st.image(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB), use_container_width=True)
 
-        # Run Inference
-        with st.spinner("Running YOLOv8 Localization & EfficientNetV2-S Classification..."):
-            detections = detector.detect_no_track(img_bgr)
+        # Run Real-Time Inference
+        with st.spinner("Processing through 2-Stage Cascaded Neural Network..."):
+            results = yolo_model(img_bgr, conf=conf_thresh, verbose=False)
             annotated = img_bgr.copy()
 
             results_summary = []
-            for det in detections:
-                x1, y1, x2, y2 = det.bbox
-                crop = img_bgr[y1:y2, x1:x2]
+            if results and len(results[0].boxes) > 0:
+                boxes = results[0].boxes
+                xyxy = boxes.xyxy.cpu().numpy()
+                confs = boxes.conf.cpu().numpy()
+                classes = boxes.cls.cpu().numpy().astype(int)
 
-                species_label = det.class_name
-                species_conf = det.confidence
+                for idx in range(len(xyxy)):
+                    bx1, by1, bx2, by2 = xyxy[idx]
+                    x1 = int(max(0, min(w - 1, bx1)))
+                    y1 = int(max(0, min(h - 1, by1)))
+                    x2 = int(max(0, min(w, bx2)))
+                    y2 = int(max(0, min(h, by2)))
 
-                if classifier.is_available and crop.size > 0:
-                    cls_res = classifier.classify(crop)
-                    if cls_res:
-                        species_label, species_conf = cls_res
+                    cid = int(classes[idx])
+                    conf = float(confs[idx])
+                    yolo_label = yolo_model.names.get(cid, f"class_{cid}")
 
-                # Draw bounding box
-                color = (0, 255, 0) if det.category == "animal" else (255, 0, 0)
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 3)
-                label_text = f"{species_label} ({species_conf:.1%})"
-                cv2.putText(annotated, label_text, (x1, max(20, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                    final_label = yolo_label
+                    final_conf = conf
+                    stage2_applied = False
 
-                results_summary.append({
-                    "Detected Entity": format_species(species_label),
-                    "Category": det.category.capitalize(),
-                    "Confidence": f"{species_conf:.2%}",
-                    "Bounding Box": f"[{x1}, {y1}, {x2}, {y2}]",
-                })
+                    # Stage 2 Fine-Grained Classifier
+                    if enable_stage2 and classifier and classifier.is_available and (x2 > x1) and (y2 > y1):
+                        crop = img_bgr[y1:y2, x1:x2]
+                        if crop.size > 0:
+                            cls_res = classifier.classify(crop)
+                            if cls_res:
+                                final_label, final_conf = cls_res
+                                stage2_applied = True
+
+                    # Color coding: Green for animals, Cyan for human
+                    is_human = final_label.lower() in ("person", "human")
+                    color = (255, 200, 0) if is_human else (0, 255, 100)
+
+                    cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 3)
+                    tag = f"{final_label} ({final_conf:.1%})"
+                    if stage2_applied:
+                        tag += " [S2]"
+
+                    cv2.putText(annotated, tag, (x1, max(24, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+
+                    results_summary.append({
+                        "Entity": format_species(final_label),
+                        "Classification Stage": "Stage 2 (EffNetV2-S)" if stage2_applied else "Stage 1 (YOLOv8)",
+                        "Confidence": f"{final_conf:.2%}",
+                        "Bounding Box [x1, y1, x2, y2]": f"[{x1}, {y1}, {x2}, {y2}]",
+                    })
 
         with col2:
-            st.subheader(f"Detections ({len(detections)} Found)")
+            st.subheader(f"Inference Results ({len(results_summary)} Found)")
             st.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB), use_container_width=True)
 
         if results_summary:
-            st.subheader("Inference Breakdown")
+            st.subheader("🔍 Detailed Detections Breakdown")
             st.dataframe(pd.DataFrame(results_summary), use_container_width=True)
         else:
-            st.warning("No wildlife or human detected in this image at 30% confidence.")
+            st.warning(f"No objects detected at confidence threshold {conf_thresh:.0%}. Try lowering the slider above.")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -616,4 +684,5 @@ elif page == "📥 Export & Field Reports":
     st.markdown("---")
     st.caption(f"Source Database: `{db_path}`")
     st.caption(f"Report Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
 
