@@ -578,7 +578,9 @@ elif page == "🔬 Live AI Inference Playground":
             if img_bgr is None:
                 st.error("❌ Failed to decode uploaded image. Please try a standard JPG/PNG file.")
     else:
-        sample_dir = PROJECT_ROOT / "multispecies_dataset" / "images" / "val"
+        sample_dir = PROJECT_ROOT / "data" / "samples"
+        if not sample_dir.exists() or len(list(sample_dir.glob("*.jpg"))) == 0:
+            sample_dir = PROJECT_ROOT / "multispecies_dataset" / "images" / "val"
         sample_files = list(sample_dir.glob("*.jpg"))[:18] if sample_dir.exists() else []
         if sample_files:
             sample_names = [f.name for f in sample_files]

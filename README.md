@@ -3,9 +3,9 @@ title: Spidy Wildlife Detector
 emoji: 🐾
 colorFrom: yellow
 colorTo: green
-sdk: gradio
-sdk_version: 5.20.0
-app_file: app.py
+sdk: streamlit
+sdk_version: 1.39.0
+app_file: dashboard/app.py
 pinned: false
 license: apache-2.0
 ---
